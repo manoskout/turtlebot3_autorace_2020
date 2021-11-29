@@ -30,6 +30,9 @@ from turtlebot3_autorace_traffic_light_detect.cfg import DetectLaneParamsConfig
 
 class DetectLane():
     def __init__(self):
+
+        #  Set the parameters according to lane detection calibration
+
         self.hue_white_l = rospy.get_param("~detect/lane/white/hue_l", 0)
         self.hue_white_h = rospy.get_param("~detect/lane/white/hue_h", 163)
         self.saturation_white_l = rospy.get_param("~detect/lane/white/saturation_l", 0)
@@ -94,6 +97,12 @@ class DetectLane():
         self.reliability_yellow_line = 100
 
     def cbGetDetectLaneParam(self, config, level):
+        '''
+        This function performed only during the calibration of the Lane Detector
+        :param config: Gets the configurations from the yaml file of HSV values
+        :param level:
+        :return: return the updated configuration file
+        '''
         rospy.loginfo("[Detect Lane] Detect Lane Calibration Parameter reconfigured to")
         rospy.loginfo("hue_white_l : %d", config.hue_white_l)
         rospy.loginfo("hue_white_h : %d", config.hue_white_h)
@@ -181,9 +190,16 @@ class DetectLane():
         self.make_lane(cv_image, white_fraction, yellow_fraction)
 
     def maskWhiteLane(self, image):
+        '''
+
+        :param image: The frame of the camera
+        :return mask: The detected white line after the threshold according to the HSV values
+        :return fraction_num: The total number of non-zero pixels of the thresholded image
+
+        '''
         # Convert BGR to HSV
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-
+        # use the values that acquired after the calibration of the lane detection
         Hue_l = self.hue_white_l
         Hue_h = self.hue_white_h
         Saturation_l = self.saturation_white_l
@@ -264,7 +280,7 @@ class DetectLane():
 
         fraction_num = np.count_nonzero(mask)
 
-        if self.is_calibration_mode == False:
+        if not self.is_calibration_mode:
             if fraction_num > 35000:
                 if self.lightness_yellow_l < 250:
                     self.lightness_yellow_l += 20
@@ -291,7 +307,7 @@ class DetectLane():
         msg_yellow_line_reliability.data = self.reliability_yellow_line
         self.pub_yellow_line_reliability.publish(msg_yellow_line_reliability)
 
-        if self.is_calibration_mode == True:
+        if self.is_calibration_mode:
             if self.pub_image_type == "compressed":
                 # publishes yellow lane filtered image in compressed type
                 self.pub_image_yellow_lane.publish(self.cvBridge.cv2_to_compressed_imgmsg(mask, "jpg"))
@@ -302,7 +318,16 @@ class DetectLane():
 
         return fraction_num, mask
 
+
     def fit_from_lines(self, lane_fit, image):
+        '''
+
+        :param lane_fit:
+        :param image:
+        :return:
+        '''
+
+        #  nonzero get the coordinates of the nonzero values of the image
         nonzero = image.nonzero()
         nonzeroy = np.array(nonzero[0])
         nonzerox = np.array(nonzero[1])
@@ -320,10 +345,16 @@ class DetectLane():
         # Generate x and y values for plotting
         ploty = np.linspace(0, image.shape[0] - 1, image.shape[0])
         lane_fitx = lane_fit[0] * ploty ** 2 + lane_fit[1] * ploty + lane_fit[2]
-            
+
         return lane_fitx, lane_fit
 
     def sliding_windown(self, img_w, left_or_right):
+        '''
+
+        :param img_w:
+        :param left_or_right:
+        :return:
+        '''
         histogram = np.sum(img_w[img_w.shape[0] / 2:, :], axis=0)
 
         # Create an output image to draw on and visualize the result
